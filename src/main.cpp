@@ -2,6 +2,9 @@
 #include <cstdlib>
 #include <ctime>
 #include <limits>
+#include <iomanip>
+#include <string>
+#include <map>
 #include <thread>
 #include <chrono>
 using namespace std;
@@ -9,8 +12,22 @@ using namespace std;
 char board[3][3];
 char player = 'X';
 char ai = 'O';
-int playerWins = 0, aiWins = 0, draws = 0;
 string difficulty = "hard";
+
+struct DifficultyStats
+{
+    int games = 0;
+    int wins = 0;
+    int losses = 0;
+    int draws = 0;
+
+    double ratio() const
+    {
+        return losses == 0 ? (wins > 0 ? wins : 0.0) : (double)wins / losses;
+    }
+};
+
+map<string, DifficultyStats> stats;
 
 // ------------ Utility Functions ------------
 void resetBoard()
@@ -25,7 +42,8 @@ void printBoard()
 {
     system("cls"); // use "clear" on Linux
     cout << "\n     TIC TAC TOE\n";
-    cout << "  Player: " << player << "  |  AI: " << ai << "\n\n";
+    cout << "  Player: " << player << "  |  AI: " << ai << "\n";
+    cout << "  Difficulty: " << difficulty << "\n\n";
     for (int i = 0; i < 3; i++)
     {
         cout << "     ";
@@ -131,7 +149,7 @@ pair<int, int> randomAIMove()
 
 void aiMove()
 {
-    cout << "🤖 AI is thinking...\n";
+    cout << " AI is thinking...\n";
     this_thread::sleep_for(chrono::milliseconds(700));
 
     pair<int, int> move;
@@ -166,7 +184,7 @@ void playerMove()
         {
             cin.clear();
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "❌ Invalid input. Try again.\n";
+            cout << " Invalid input. Try again.\n";
             continue;
         }
         int r = (move - 1) / 3, c = (move - 1) % 3;
@@ -177,7 +195,7 @@ void playerMove()
         }
         else
         {
-            cout << "⚠️ Cell already taken. Try again.\n";
+            cout << " Cell already taken. Try again.\n";
         }
     }
 }
@@ -192,25 +210,45 @@ void chooseDifficulty()
         if (input == "easy" || input == "medium" || input == "hard")
         {
             difficulty = input;
-            break;
+            return;
         }
-        cout << "❌ Invalid choice. Try again.\n";
+        cout << " Invalid choice. Try again.\n";
     }
 }
 
-void printScore()
+void printScoreboard()
 {
-    cout << "\n🏆 SCOREBOARD:\n";
-    cout << " Player Wins : " << playerWins << "\n";
-    cout << " AI Wins     : " << aiWins << "\n";
-    cout << " Draws       : " << draws << "\n\n";
+    cout << "\n🏆 SCOREBOARD\n";
+    cout << left << setw(12) << "Difficulty"
+         << right << setw(8) << "Games"
+         << setw(8) << "Wins"
+         << setw(10) << "Losses"
+         << setw(8) << "Draws"
+         << setw(10) << "W/L Ratio" << "\n";
+
+    cout << string(56, '-') << "\n";
+
+    for (const auto &pair : stats)
+    {
+        const auto &name = pair.first;
+        const auto &s = pair.second;
+        cout << left << setw(12) << name
+             << right << setw(8) << s.games
+             << setw(8) << s.wins
+             << setw(10) << s.losses
+             << setw(8) << s.draws
+             << fixed << setprecision(2)
+             << setw(10) << s.ratio() << "\n";
+    }
+
+    cout << "\n";
 }
 
 // ------------ Main Game ------------
 int main()
 {
     srand(time(0));
-    cout << "🎮 Welcome to Tic Tac Toe!\n";
+    cout << " Welcome to Tic Tac Toe!\n";
     chooseDifficulty();
 
     char again;
@@ -218,6 +256,7 @@ int main()
     {
         resetBoard();
         bool gameOver = false;
+        stats[difficulty].games++;
 
         while (!gameOver)
         {
@@ -226,8 +265,8 @@ int main()
             if (checkWin(player))
             {
                 printBoard();
-                cout << "🎉 You WIN!\n";
-                playerWins++;
+                cout << " You WIN!\n";
+                stats[difficulty].wins++;
                 gameOver = true;
                 break;
             }
@@ -238,31 +277,39 @@ int main()
             if (checkWin(ai))
             {
                 printBoard();
-                cout << "💀 AI WINS!\n";
-                aiWins++;
+                cout << " AI WINS!\n";
+                stats[difficulty].losses++;
                 gameOver = true;
                 break;
             }
             if (!isMovesLeft())
             {
                 printBoard();
-                cout << "🤝 It's a DRAW!\n";
-                draws++;
+                cout << " It's a DRAW!\n";
+                stats[difficulty].draws++;
                 gameOver = true;
                 break;
             }
         }
 
-        printScore();
+        printScoreboard();
+
+        cout << "Do you want to change difficulty? (y/n): ";
+        char changeDiff;
+        cin >> changeDiff;
+        if (changeDiff == 'y' || changeDiff == 'Y')
+            chooseDifficulty();
+
         cout << "Play again? (y/n): ";
         cin >> again;
         while (again != 'y' && again != 'Y' && again != 'n' && again != 'N')
         {
-            cout << "❌ Invalid input. Enter y/n: ";
+            cout << " Invalid input. Enter y/n: ";
             cin >> again;
         }
+
     } while (again == 'y' || again == 'Y');
 
-    cout << "\n👋 Thanks for playing!\n";
+    cout << "\n Thanks for playing!\n";
     return 0;
 }
