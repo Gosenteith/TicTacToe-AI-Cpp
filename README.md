@@ -1,4 +1,4 @@
-# Tic Tac Toe AI (C++)
+# Tic Tac Toe AI
 
 A terminal-based Tic Tac Toe game built in C++ featuring an AI opponent with adjustable difficulty levels, smart decision-making, and persistent round-based statistics.
 
