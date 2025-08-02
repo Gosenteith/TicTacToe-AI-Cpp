@@ -1,4 +1,5 @@
 #include <iostream>
+#include <algorithm>
 #include <cstdlib>
 #include <ctime>
 #include <limits>
@@ -7,13 +8,32 @@
 #include <map>
 #include <thread>
 #include <chrono>
+#include <vector>
 using namespace std;
 
 char board[3][3];
-char player = 'X';
-char ai = 'O';
+string mode = "single"; // or "multi"
 string difficulty = "hard";
 
+// --- Player Setup ---
+struct Player
+{
+    string name;
+    char symbol;
+    string color;
+};
+
+Player player1, player2;
+map<string, string> colorCodes = {
+    {"red", "\033[31m"},
+    {"green", "\033[32m"},
+    {"yellow", "\033[33m"},
+    {"blue", "\033[34m"},
+    {"magenta", "\033[35m"},
+    {"cyan", "\033[36m"},
+    {"reset", "\033[0m"}};
+
+// --- Score Tracking for AI Mode ---
 struct DifficultyStats
 {
     int games = 0;
@@ -29,7 +49,7 @@ struct DifficultyStats
 
 map<string, DifficultyStats> stats;
 
-// ------------ Utility Functions ------------
+// ------------ Utility ------------
 void resetBoard()
 {
     char c = '1';
@@ -38,18 +58,36 @@ void resetBoard()
             board[i][j] = c++;
 }
 
+string colorize(char symbol)
+{
+    if (symbol == player1.symbol)
+        return colorCodes[player1.color] + symbol + colorCodes["reset"];
+    if (symbol == player2.symbol)
+        return colorCodes[player2.color] + symbol + colorCodes["reset"];
+    return string(1, symbol);
+}
+
 void printBoard()
 {
-    system("cls"); // use "clear" on Linux
+    system("cls"); // use "clear" on Mac/Linux
     cout << "\n     TIC TAC TOE\n";
-    cout << "  Player: " << player << "  |  AI: " << ai << "\n";
-    cout << "  Difficulty: " << difficulty << "\n\n";
+    if (mode == "single")
+    {
+        cout << "  Player: " << player1.name << "  |  AI\n";
+        cout << "  Difficulty: " << difficulty << "\n\n";
+    }
+    else
+    {
+        cout << "  " << player1.name << " (" << player1.symbol << ") vs "
+             << player2.name << " (" << player2.symbol << ")\n\n";
+    }
+
     for (int i = 0; i < 3; i++)
     {
         cout << "     ";
         for (int j = 0; j < 3; j++)
         {
-            cout << board[i][j];
+            cout << colorize(board[i][j]);
             if (j < 2)
                 cout << " | ";
         }
@@ -72,17 +110,17 @@ int evaluate()
 {
     for (int i = 0; i < 3; i++)
         if (board[i][0] == board[i][1] && board[i][1] == board[i][2])
-            return (board[i][0] == ai) ? 10 : (board[i][0] == player ? -10 : 0);
+            return (board[i][0] == player2.symbol) ? 10 : (board[i][0] == player1.symbol ? -10 : 0);
 
     for (int i = 0; i < 3; i++)
         if (board[0][i] == board[1][i] && board[1][i] == board[2][i])
-            return (board[0][i] == ai) ? 10 : (board[0][i] == player ? -10 : 0);
+            return (board[0][i] == player2.symbol) ? 10 : (board[0][i] == player1.symbol ? -10 : 0);
 
     if (board[0][0] == board[1][1] && board[1][1] == board[2][2])
-        return (board[0][0] == ai) ? 10 : (board[0][0] == player ? -10 : 0);
+        return (board[0][0] == player2.symbol) ? 10 : (board[0][0] == player1.symbol ? -10 : 0);
 
     if (board[0][2] == board[1][1] && board[1][1] == board[2][0])
-        return (board[0][2] == ai) ? 10 : (board[0][2] == player ? -10 : 0);
+        return (board[0][2] == player2.symbol) ? 10 : (board[0][2] == player1.symbol ? -10 : 0);
 
     return 0;
 }
@@ -101,7 +139,7 @@ int minimax(bool isMax)
             if (board[i][j] != 'X' && board[i][j] != 'O')
             {
                 char backup = board[i][j];
-                board[i][j] = isMax ? ai : player;
+                board[i][j] = isMax ? player2.symbol : player1.symbol;
                 int val = minimax(!isMax);
                 board[i][j] = backup;
                 best = isMax ? max(best, val) : min(best, val);
@@ -118,7 +156,7 @@ pair<int, int> bestAIMove()
             if (board[i][j] != 'X' && board[i][j] != 'O')
             {
                 char backup = board[i][j];
-                board[i][j] = ai;
+                board[i][j] = player2.symbol;
                 int moveVal = minimax(false);
                 board[i][j] = backup;
                 if (moveVal > bestVal)
@@ -141,56 +179,28 @@ pair<int, int> randomAIMove()
                 empty[count][1] = j;
                 count++;
             }
-    if (count == 0)
-        return {-1, -1};
     int r = rand() % count;
     return {empty[r][0], empty[r][1]};
 }
 
-void aiMove()
-{
-    cout << " AI is thinking...\n";
-    this_thread::sleep_for(chrono::milliseconds(700));
-
-    pair<int, int> move;
-    if (difficulty == "easy")
-    {
-        move = randomAIMove();
-    }
-    else if (difficulty == "medium")
-    {
-        move = (rand() % 2 == 0) ? bestAIMove() : randomAIMove();
-    }
-    else
-    {
-        move = bestAIMove();
-    }
-    board[move.first][move.second] = ai;
-}
-
-bool checkWin(char sym)
-{
-    return evaluate() == (sym == ai ? 10 : -10);
-}
-
-void playerMove()
+void playerMove(Player &p)
 {
     int move;
     while (true)
     {
-        cout << "Enter move (1-9): ";
+        cout << p.name << " (" << colorCodes[p.color] << p.symbol << colorCodes["reset"] << ") enter move (1-9): ";
         cin >> move;
         if (cin.fail() || move < 1 || move > 9)
         {
             cin.clear();
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << " Invalid input. Try again.\n";
+            cout << "❌ Invalid input. Try again.\n";
             continue;
         }
         int r = (move - 1) / 3, c = (move - 1) % 3;
         if (board[r][c] != 'X' && board[r][c] != 'O')
         {
-            board[r][c] = player;
+            board[r][c] = p.symbol;
             break;
         }
         else
@@ -200,48 +210,67 @@ void playerMove()
     }
 }
 
-void chooseDifficulty()
+void aiMove()
 {
-    string input;
+    cout << " AI is thinking...\n";
+    this_thread::sleep_for(chrono::milliseconds(700));
+    pair<int, int> move =
+        (difficulty == "easy") ? randomAIMove() : (difficulty == "medium" && rand() % 2 == 0) ? randomAIMove()
+                                                                                              : bestAIMove();
+    board[move.first][move.second] = player2.symbol;
+}
+
+bool checkWin(char sym)
+{
+    return evaluate() == (sym == player2.symbol ? 10 : -10);
+}
+
+void chooseColor(Player &p, string taken = "")
+{
     while (true)
     {
-        cout << "Select difficulty (easy / medium / hard): ";
-        cin >> input;
-        if (input == "easy" || input == "medium" || input == "hard")
-        {
-            difficulty = input;
-            return;
-        }
-        cout << " Invalid choice. Try again.\n";
+        cout << p.name << ", choose a color (red, green, yellow, blue, magenta, cyan): ";
+        cin >> p.color;
+        if (colorCodes.count(p.color) && p.color != taken)
+            break;
+        cout << " Invalid or already taken. Try again.\n";
     }
 }
 
-void printScoreboard()
+void setupMode()
 {
-    cout << "\n🏆 SCOREBOARD\n";
-    cout << left << setw(12) << "Difficulty"
-         << right << setw(8) << "Games"
-         << setw(8) << "Wins"
-         << setw(10) << "Losses"
-         << setw(8) << "Draws"
-         << setw(10) << "W/L Ratio" << "\n";
+    cout << "Select mode: [1] Single Player  [2] Multiplayer\n> ";
+    int input;
+    cin >> input;
+    mode = (input == 2) ? "multi" : "single";
 
-    cout << string(56, '-') << "\n";
-
-    for (const auto &pair : stats)
+    if (mode == "multi")
     {
-        const auto &name = pair.first;
-        const auto &s = pair.second;
-        cout << left << setw(12) << name
-             << right << setw(8) << s.games
-             << setw(8) << s.wins
-             << setw(10) << s.losses
-             << setw(8) << s.draws
-             << fixed << setprecision(2)
-             << setw(10) << s.ratio() << "\n";
-    }
+        player1.symbol = 'X';
+        player2.symbol = 'O';
 
-    cout << "\n";
+        cout << "Enter Player 1 name: ";
+        cin >> player1.name;
+        chooseColor(player1);
+
+        cout << "Enter Player 2 name: ";
+        cin >> player2.name;
+        chooseColor(player2, player1.color);
+    }
+    else
+    {
+        player1.name = "You";
+        player2.name = "AI";
+        player1.symbol = 'X';
+        player2.symbol = 'O';
+        chooseColor(player1);
+        vector<string> pool = {"red", "green", "yellow", "blue", "magenta", "cyan"};
+        pool.erase(remove(pool.begin(), pool.end(), player1.color), pool.end());
+        player2.color = pool[rand() % pool.size()];
+
+        cout << "Select difficulty (easy / medium / hard): ";
+        cin >> difficulty;
+    }
 }
 
 // ------------ Main Game ------------
@@ -249,56 +278,74 @@ int main()
 {
     srand(time(0));
     cout << " Welcome to Tic Tac Toe!\n";
-    chooseDifficulty();
+    setupMode();
 
     char again;
     do
     {
         resetBoard();
         bool gameOver = false;
-        stats[difficulty].games++;
+
+        if (mode == "single")
+            stats[difficulty].games++;
 
         while (!gameOver)
         {
             printBoard();
-            playerMove();
-            if (checkWin(player))
+            playerMove(player1);
+
+            if (checkWin(player1.symbol))
             {
                 printBoard();
-                cout << " You WIN!\n";
-                stats[difficulty].wins++;
+                cout << " " << player1.name << " WINS!\n";
+                if (mode == "single")
+                    stats[difficulty].wins++;
                 gameOver = true;
                 break;
             }
+
             if (!isMovesLeft())
                 break;
 
-            aiMove();
-            if (checkWin(ai))
+            if (mode == "multi")
+            {
+                playerMove(player2);
+            }
+            else
+            {
+                aiMove();
+            }
+
+            if (checkWin(player2.symbol))
             {
                 printBoard();
-                cout << " AI WINS!\n";
-                stats[difficulty].losses++;
+                cout << " " << player2.name << " WINS!\n";
+                if (mode == "single")
+                    stats[difficulty].losses++;
                 gameOver = true;
                 break;
             }
+
             if (!isMovesLeft())
             {
                 printBoard();
                 cout << " It's a DRAW!\n";
-                stats[difficulty].draws++;
-                gameOver = true;
+                if (mode == "single")
+                    stats[difficulty].draws++;
                 break;
             }
         }
 
-        printScoreboard();
-
-        cout << "Do you want to change difficulty? (y/n): ";
-        char changeDiff;
-        cin >> changeDiff;
-        if (changeDiff == 'y' || changeDiff == 'Y')
-            chooseDifficulty();
+        if (mode == "single")
+        {
+            cout << "\n SCOREBOARD for " << difficulty << " mode:\n";
+            const auto &s = stats[difficulty];
+            cout << " Games:  " << s.games << "\n";
+            cout << " Wins:   " << s.wins << "\n";
+            cout << " Losses: " << s.losses << "\n";
+            cout << " Draws:  " << s.draws << "\n";
+            cout << " W/L:    " << fixed << setprecision(2) << s.ratio() << "\n\n";
+        }
 
         cout << "Play again? (y/n): ";
         cin >> again;
@@ -306,6 +353,17 @@ int main()
         {
             cout << " Invalid input. Enter y/n: ";
             cin >> again;
+        }
+
+        if (again == 'y' || again == 'Y')
+        {
+            cout << "\nDo you want to change mode or difficulty? (y/n): ";
+            char change;
+            cin >> change;
+            if (change == 'y' || change == 'Y')
+            {
+                setupMode();
+            }
         }
 
     } while (again == 'y' || again == 'Y');
