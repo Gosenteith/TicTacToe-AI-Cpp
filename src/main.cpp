@@ -293,6 +293,7 @@ int main()
         {
             printBoard();
             playerMove(player1);
+            printBoard();
 
             if (checkWin(player1.symbol))
             {
@@ -310,10 +311,12 @@ int main()
             if (mode == "multi")
             {
                 playerMove(player2);
+                printBoard();
             }
             else
             {
                 aiMove();
+                printBoard();
             }
 
             if (checkWin(player2.symbol))
